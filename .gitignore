@@ -1,0 +1,46 @@
+# === Build Artifacts & Output ===
+build/
+*.o
+*.elf
+*.bin
+*.iso
+*.img
+*.map
+*.log
+*.d
+*.a
+
+# === Compilation & Analysis Tools ===
+.cache/
+compile_commands.json
+.sconsign.dblite
+target/
+
+# === Python Cache ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# === Editor & IDE Specific ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.vscode/*.log
+
+# === OS Generated Files ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# === Temporary Files ===
+*.tmp
+*.bak
+*.orig
