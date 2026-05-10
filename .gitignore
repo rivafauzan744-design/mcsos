@@ -1,27 +1,18 @@
-# --- Build Outputs ---
+# MCSOS Build Artifacts
 build/
-bin/
-obj/
+iso_root/
 
-# --- Binary & Executable Files ---
-*.o
-*.elf
-*.bin
-*.img
+# Binary & Executable Images
 *.iso
+*.img
+*.elf
+
+# Debug & Linker Maps
 *.map
 
-# --- Logs & Debugging ---
-*.log
-.cache/
-dump.txt
+# Compiler Objects & Dependency Files
+*.o
+*.d
 
-# --- Editor & IDE Private Folders ---
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# --- System & Misc ---
-.DS_Store
-Thumbs.db
+# Third Party Dependencies
+third_party/limine/
