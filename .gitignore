@@ -1,46 +1,27 @@
-# === Build Artifacts & Output ===
+# --- Build Outputs ---
 build/
+bin/
+obj/
+
+# --- Binary & Executable Files ---
 *.o
 *.elf
 *.bin
-*.iso
 *.img
+*.iso
 *.map
+
+# --- Logs & Debugging ---
 *.log
-*.d
-*.a
-
-# === Compilation & Analysis Tools ===
 .cache/
-compile_commands.json
-.sconsign.dblite
-target/
+dump.txt
 
-# === Python Cache ===
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-
-# === Editor & IDE Specific ===
+# --- Editor & IDE Private Folders ---
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.project
-.settings/
-.vscode/*.log
 
-# === OS Generated Files ===
+# --- System & Misc ---
 .DS_Store
 Thumbs.db
-ehthumbs.db
-desktop.ini
-
-# === Temporary Files ===
-*.tmp
-*.bak
-*.orig
