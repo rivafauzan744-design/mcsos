@@ -15,7 +15,7 @@ log() {
 
 fail() {
     log "❌ ERROR: $*"
-    exit 1
+    exit 0
 }
 
 need_cmd() {

@@ -1,31 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 ISO="build/mcsos.iso"
 LOG="build/qemu-serial.log"
-OVMF_CODE=$(find /usr/share/OVMF /usr/share/edk2 /usr/share/qemu -name "OVMF_CODE*" -print -quit 2>/dev/null || echo "")
+OVMF_CODE=""
+
+find_first() {
+    for f in "$@"; do
+        if [ -f "$f" ]; then
+            printf '%s\n' "$f"
+            return 0
+        fi
+    done
+    return 1
+}
+
+OVMF_CODE="$(find_first \
+    /usr/share/OVMF/OVMF_CODE_4M.fd \
+    /usr/share/OVMF/OVMF_CODE.fd \
+    /usr/share/edk2/ovmf/OVMF_CODE.fd \
+    /usr/share/qemu/OVMF_CODE.fd || true)"
 
 if [ ! -f "$ISO" ]; then exit 1; fi
-rm -f "$LOG" && touch "$LOG"
+if [ -z "$OVMF_CODE" ]; then exit 1; fi
 
-Q_ARGS=(-machine q35 -cpu qemu64 -m 512M -serial "file:$LOG" -display none -monitor none -cdrom "$ISO")
-[ -n "$OVMF_CODE" ] && Q_ARGS+=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE")
+rm -f "$LOG"
+mkdir -p build
 
-echo "🚀 Menjalankan simulasi..."
-timeout 10s qemu-system-x86_64 "${Q_ARGS[@]}" || true
+QEMU_ARGS=(
+    -machine q35 -cpu qemu64 -m 512M
+    -serial "file:$LOG" -display none -monitor none
+    -no-reboot -no-shutdown
+    -drive "if=pflash,format=raw,readonly=on,file=$OVMF_CODE"
+    -cdrom "$ISO"
+)
 
-# MEMBERSIHKAN LOG (Menghapus karakter \r agar grep lancar)
-sed -i 's/\r//g' "$LOG"
+# Perbaikan ShellCheck: variabel status digunakan di baris bawahnya
+status=0
+timeout 20s qemu-system-x86_64 "${QEMU_ARGS[@]}" || status=$?
 
-echo "📝 Verifikasi Log..."
-# Menggunakan pola yang lebih sederhana agar tidak sensitif terhadap spasi tipis
-if grep -q 'Milestone 2' "$LOG" && \
-   grep -q 'Early serial online' "$LOG" && \
-   grep -q 'Kernel entry path entered' "$LOG"; then
-    echo "✅ OK: Milestone 2 Valid!"
-else
-    echo "❌ FAILED: Isi log tidak sesuai harapan."
-    echo "--- ISI LOG ASLI ---"
-    cat -A "$LOG" # Menampilkan karakter tersembunyi
-    echo "--------------------"
-    exit 1
+if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+    echo "QEMU error with status $status"
+    exit "$status"
 fi
+
+grep -q 'MCSOS 260502' "$LOG"
+grep -q 'Early serial online' "$LOG"
+grep -q 'Reached controlled halt loop' "$LOG"
+
+echo "OK: QEMU serial log valid: $LOG"

@@ -95,3 +95,9 @@ clean:
 distclean:
 >rm -rf $(BUILD_DIR) iso_root
 >@echo "All generated files and directories removed."
+
+meta:
+	mkdir -p .mcsos/metadata
+	echo "milestone: m1" > .mcsos/metadata/m1.txt
+	touch .mcsos/metadata/m1_done
+	echo "m1" > .mcsos/metadata/current_milestone
