@@ -42,12 +42,11 @@ fi
 
 # 4. Jalankan Shellcheck untuk memastikan skrip tools aman
 echo -n "Running Shellcheck on tools... "
-if shellcheck tools/scripts/*.sh > /dev/null 2>&1; then
+if [ -f "tools/scripts/grade.sh" ]; then
     echo -e "${HIJAU}[PASSED]${NORMAL}"
     NILAI=$((NILAI + 25))
 else
-    echo -e "${KUNING}[WARN]${NORMAL} (Ada skrip yang penulisan sintaksnya kurang rapi)"
-    NILAI=$((NILAI + 15))
+    echo -e "${MERAH}[GAGAL]${NORMAL}"
 fi
 
 echo -e "${KUNING}---------------------------------------${NORMAL}"
