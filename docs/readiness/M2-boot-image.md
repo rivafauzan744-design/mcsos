@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+mkdir -p docs/readiness
+cat > docs/readiness/M2-boot-image.md <<'EOF'
+>>>>>>> f652c88de55addd939cfd2e9a053d1801f828fb4
 # Readiness Review M2 - Boot Image dan Early Serial Console
 ## Identitas- Proyek: MCSOS 260502- Praktikum: M2- Target: x86_64, QEMU, OVMF, Limine- Nama/Kelompok:- Commit hash:- Tanggal:
 ## Ringkasan Status
@@ -39,3 +44,7 @@ Alasan ringkas:
 | CRLF script | Ya/Tidak | | |
 ## Keputusan Readiness- [ ] Lulus M2: siap uji QEMU tahap M2.- [ ] Belum lulus M2: perlu perbaikan.
 ## Catatan Reviewer
+<<<<<<< HEAD
+=======
+EOF
+>>>>>>> f652c88de55addd939cfd2e9a053d1801f828fb4
