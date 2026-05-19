@@ -1,6 +1,8 @@
 #ifndef MCSOS_ARCH_CPU_H
 #define MCSOS_ARCH_CPU_H
+
 #include <stdint.h>
+
 static inline void cpu_cli(void) {
     __asm__ volatile ("cli" : : : "memory");
 }
