@@ -1,15 +1,10 @@
-#include <stdint.h>
-#include <serial.h>
+#include <mcsos/kernel/log.h>
+#include <mcsos/kernel/panic.h>
 
 void kmain(void) {
-    serial_init();
+    log_init();
     
-    serial_write("MCSOS 260502 - Milestone 2\n");
-    serial_write("[OK] Early serial online\n");
-    serial_write("[OK] Kernel entry path entered\n");
-    serial_write("[OK] Reached controlled halt loop\n");
-
-    while (1) {
-        __asm__ volatile ("hlt");
-    }
+    // Memicu panic sesuai format instruksi M3 halaman 23:
+    // "intentional M3 panic test" dengan kode 0x4d43534f533033
+    kernel_panic_at("kernel/core/kmain.c", 20, "intentional M3 panic test", 0x4d43534f533033);
 }

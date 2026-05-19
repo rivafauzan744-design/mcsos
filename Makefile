@@ -1,103 +1,71 @@
 .RECIPEPREFIX := >
 SHELL := /usr/bin/env bash
 
-# 1. Konfigurasi Dasar
-ARCH      := x86_64
 BUILD_DIR := build
-KERNEL    := $(BUILD_DIR)/kernel.elf
-MAP       := $(BUILD_DIR)/kernel.map
+KERNEL := $(BUILD_DIR)/kernel.elf
+PANIC_KERNEL := $(BUILD_DIR)/kernel.panic.elf
+MAP := $(BUILD_DIR)/kernel.map
+PANIC_MAP := $(BUILD_DIR)/kernel.panic.map
+DISASM := $(BUILD_DIR)/kernel.disasm.txt
+SYMS := $(BUILD_DIR)/kernel.syms.txt
 
-# 2. Toolchain (Menggunakan LLVM/Clang)
-CC        := clang
-LD        := ld.lld
-OBJDUMP   := objdump
-READELF   := readelf
-NM        := nm
+CC := clang
+LD := ld.lld
+OBJDUMP := objdump
+READELF := readelf
+NM := nm
 
-# 3. Compiler Flags (Optimization & Freestanding)
-# Menargetkan kernel x86_64 murni tanpa fitur OS host
-CFLAGS := --target=x86_64-unknown-none-elf -std=c17 \
-          -ffreestanding -fno-stack-protector -fno-stack-check \
-          -fno-pic -fno-pie -fno-lto -m64 -march=x86-64 -mabi=sysv \
-          -mno-red-zone -mno-mmx -mno-sse -mno-sse2 \
-          -mcmodel=kernel -Wall -Wextra -Werror \
-          -Ikernel/arch/x86_64/include
+COMMON_CFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding \
+                 -fno-builtin -fno-stack-protector -fno-stack-check \
+                 -fno-pic -fno-pie -fno-lto -m64 -march=x86-64 -mabi=sysv \
+                 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mcmodel=kernel \
+                 -Wall -Wextra -Werror -Ikernel/arch/x86_64/include -Ikernel/include
 
-# 4. Linker Flags
-LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T linker.ld -Map=$(MAP)
+CFLAGS := $(COMMON_CFLAGS)
+PANIC_CFLAGS := $(COMMON_CFLAGS) -DMCSOS_M3_TRIGGER_PANIC=1
+LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T linker.ld
 
-# 5. Deteksi Source & Object Files
-SRC_C  := $(shell find kernel -name '*.c' | LC_ALL=C sort)
-OBJ    := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRC_C))
+SRC_C := $(shell find kernel -name '*.c' | LC_ALL=C sort)
+OBJ := $(patsubst %.c,$(BUILD_DIR)/normal/%.o,$(SRC_C))
+PANIC_OBJ := $(patsubst %.c,$(BUILD_DIR)/panic/%.o,$(SRC_C))
 
-# ------------------------------------------------------------------------------
-# TARGETS
-# ------------------------------------------------------------------------------
+.PHONY: all clean build inspect audit
 
-.PHONY: all build inspect image run debug check-prev check-src \
-        check-scripts grade clean distclean
+all: build inspect audit
 
-all: build
+clean:
+>rm -rf $(BUILD_DIR)
 
-# Pengecekan prasyarat M1 dan Toolchain
-check-prev:
->./tools/scripts/m2_preflight.sh
+build: $(KERNEL) $(PANIC_KERNEL)
 
-check-src:
->$(CC) --version | head -n 1
->$(LD) --version | head -n 1
->test -f linker.ld
->test -d kernel/core
->test -d kernel/lib
->test -d kernel/arch/x86_64/include
-
-check-scripts:
->for s in tools/scripts/*.sh; do bash -n "$$s"; done
->@if command -v shellcheck >/dev/null 2>&1; then \
-     shellcheck tools/scripts/*.sh; \
- else \
-     echo "WARN: shellcheck tidak tersedia"; \
- fi
-
-# Proses Kompilasi
-build: $(KERNEL)
-
-$(BUILD_DIR)/%.o: %.c
+$(BUILD_DIR)/normal/%.o: %.c
 >mkdir -p $(dir $@)
 >$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/panic/%.o: %.c
+>mkdir -p $(dir $@)
+>$(CC) $(PANIC_CFLAGS) -c $< -o $@
+
 $(KERNEL): $(OBJ) linker.ld
 >mkdir -p $(BUILD_DIR)
->$(LD) $(LDFLAGS) -o $@ $(OBJ)
->@echo "Successfully linked kernel: $@"
+>$(LD) $(LDFLAGS) -Map=$(MAP) -o $@ $(OBJ)
 
-# Automasi Workflow (Opsional, memerlukan script di tools/scripts/)
+$(PANIC_KERNEL): $(PANIC_OBJ) linker.ld
+>mkdir -p $(BUILD_DIR)
+>$(LD) $(LDFLAGS) -Map=$(PANIC_MAP) -o $@ $(PANIC_OBJ)
+
 inspect: $(KERNEL)
->./tools/scripts/inspect_kernel.sh
+>$(READELF) -h $(KERNEL) > $(BUILD_DIR)/kernel.readelf.header.txt
+>$(READELF) -l $(KERNEL) > $(BUILD_DIR)/kernel.readelf.programs.txt
+>$(NM) -n $(KERNEL) > $(SYMS)
+>$(OBJDUMP) -d -Mintel $(KERNEL) > $(DISASM)
 
-image: $(KERNEL)
->./tools/scripts/make_iso.sh
-
-run: image
->./tools/scripts/run_qemu.sh
-
-debug: image
->./tools/scripts/run_qemu_debug.sh
-
-grade: check-src check-scripts build inspect image run
->./tools/scripts/grade_m2.sh
-
-# Pembersihan
-clean:
->rm -rf $(BUILD_DIR)/kernel $(BUILD_DIR)/*.elf $(BUILD_DIR)/*.map $(BUILD_DIR)/inspect
->@echo "Build artifacts cleaned."
-
-distclean:
->rm -rf $(BUILD_DIR) iso_root
->@echo "All generated files and directories removed."
-
-meta:
-	mkdir -p .mcsos/metadata
-	echo "milestone: m1" > .mcsos/metadata/m1.txt
-	touch .mcsos/metadata/m1_done
-	echo "m1" > .mcsos/metadata/current_milestone
+audit: inspect
+>grep -q 'ELF64' $(BUILD_DIR)/kernel.readelf.header.txt
+>grep -q 'Machine:[[:space:]]*Advanced Micro Devices X86-64' $(BUILD_DIR)/kernel.readelf.header.txt
+>grep -q 'kmain' $(SYMS)
+>grep -q 'kernel_panic_at' $(SYMS)
+>grep -q 'cpu_halt_forever' $(DISASM)
+>! $(NM) -u $(KERNEL) | grep .
+>! $(NM) -u $(PANIC_KERNEL) | grep .
+>echo "PASS: Semua kriteria audit biner M3 terpenuhi!"
