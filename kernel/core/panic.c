@@ -43,3 +43,4 @@ __attribute__((noreturn)) void kernel_panic_at(const char *file, int line, const
         __asm__ volatile("hlt");
     }
 }
+

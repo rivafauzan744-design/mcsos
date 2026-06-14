@@ -1,72 +1,22 @@
 #!/usr/bin/env bash
-BUILD_DIR="build"
-LOG_FILE="${BUILD_DIR}/m3_serial.log"
-
-echo "[MCSOS M3] Menyinkronkan biner panic ke dalam mode ISO Bootloader..."
-
-# 1. Paksa Makefile menyusun varian panic sebagai biner utama untuk sementara waktu
-if [ -f "Makefile" ]; then
-    # Menyalin biner panic ke tempat yang biasanya dicari oleh skrip pembuat ISO M2
-    mkdir -p iso_root
-    cp build/kernel.panic.elf build/kernel.elf 2>/dev/null || true
-    
-    # Menjalankan perintah pembuatan ISO jika targetnya tersedia di Makefile kamu
-    if grep -q "iso" Makefile; then
-        echo "[MCSOS M3] Membuat file ISO menggunakan Makefile..."
-        make iso >/dev/null 2>&1
-    elif [ -f "tools/scripts/m2_iso.sh" ]; then
-        echo "[MCSOS M3] Membuat file ISO menggunakan skrip M2..."
-        ./tools/scripts/m2_iso.sh >/dev/null 2>&1
-    fi
-fi
-
-# Pastikan file log bersih
-> "$LOG_FILE"
-
-echo "[MCSOS M3] Menjalankan QEMU melalui Emulasi Mesin + Serial Redirect..."
-echo "[MCSOS M3] Menunggu output kernel... (Mohon tunggu 4 detik)"
-
-# 2. Jalankan QEMU dengan mengarahkan port serial COM1 ke file log secara interaktif
-qemu-system-x86_64 \
-    -nographic \
-    -display none \
-    -serial file:"$LOG_FILE" \
-    -kernel build/kernel.panic.elf 2>/dev/null &
-QEMU_PID=$!
-
-sleep 4
-
-# 3. Validasi isi Log
-if [ -s "$LOG_FILE" ]; then
-    echo -e "\n--- [SUKSES] HASIL LOG SERIAL KERNEL ---"
-    cat "$LOG_FILE"
-    echo -e "-----------------------------------------\n"
-    kill $QEMU_PID 2>/dev/null
-    exit 0
-fi
-
-# Fallback: Jika parameter -kernel gagal total karena pembatasan WSL, pakai file ISO buatan M2
-kill $QEMU_PID 2>/dev/null
-if [ -f "build/mcsos.iso" ]; then
-    echo "[MCSOS M3] Parameter -kernel diblokir host. Mencoba Fallback via mcsos.iso..."
-    qemu-system-x86_64 \
-        -nographic \
-        -display none \
-        -serial file:"$LOG_FILE" \
-        -cdrom build/mcsos.iso 2>/dev/null &
-    QEMU_PID=$!
-    sleep 4
-fi
-
-# Tampilkan hasil akhir
-if [ -s "$LOG_FILE" ]; then
-    echo -e "\n--- [SUKSES VIA ISO] HASIL LOG SERIAL KERNEL ---"
-    cat "$LOG_FILE"
-    echo -e "-------------------------------------------------\n"
-else
-    echo "ERROR: Kernel tetap tidak menghasilkan log."
-    echo "Tips: Pastikan fungsi 'serial_init()' dan 'outb()' di M2 kemarin tidak ada yang terhapus."
-fi
-
-# Matikan QEMU
-kill $QEMU_PID 2>/dev/null
+set -Eeuo pipefail
+ISO="${1:-build/mcsos.iso}"
+LOG="${2:-build/m3_serial.log}"
+TIMEOUT_SEC="${MCSOS_QEMU_TIMEOUT:-8}"
+OVMF_CODE="${OVMF_CODE:-/usr/share/OVMF/OVMF_CODE.fd}"
+OVMF_VARS="${OVMF_VARS:-/usr/share/OVMF/OVMF_VARS.fd}"
+fail() { echo "FAIL: $*" >&2; exit 1; }
+test -f "$ISO" || fail "ISO tidak ditemukan: $ISO"
+command -v qemu-system-x86_64 >/dev/null 2>&1 || fail "qemu-system-x86_64 
+tidak ditemukan"
+test -f "$OVMF_CODE" || fail "OVMF_CODE tidak ditemukan: $OVMF_CODE"
+test -f "$OVMF_VARS" || fail "OVMF_VARS tidak ditemukan: $OVMF_VARS"
+mkdir -p "$(dirname "$LOG")"
+rm -f "$LOG"
+timeout "$TIMEOUT_SEC" qemu-system-x86_64 \-machine q35 \-m 256M \-smp 1 \-cpu qemu64 \-drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \-drive if=pflash,format=raw,file="$OVMF_VARS" \-cdrom "$ISO" \-boot d \-serial file:"$LOG" \-display none \-no-reboot \-no-shutdown || true
+cat "$LOG"
+grep -q 'MCSOS 260502 M3 kernel entered' "$LOG" || fail "log boot M3 tidak 
+ditemukan"
+grep -q '\[M3\] selftest: basic invariants passed' "$LOG" || fail 
+"selftest M3 tidak lulus"
+echo "PASS: QEMU smoke test M3 selesai"

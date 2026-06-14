@@ -37,7 +37,7 @@ void log_writeln(const char *s) {
 void log_hex64(uint64_t value) {
     static const char digits[] = "0123456789abcdef";
     log_write("0x");
-    
+
     for (int shift = 60; shift >= 0; shift -= 4) {
         uint8_t nibble = (uint8_t)((value >> (uint32_t)shift) & 0x0Fu);
         log_putc(digits[nibble]);

@@ -8,7 +8,6 @@ MAP := $(BUILD_DIR)/kernel.map
 PANIC_MAP := $(BUILD_DIR)/kernel.panic.map
 DISASM := $(BUILD_DIR)/kernel.disasm.txt
 SYMS := $(BUILD_DIR)/kernel.syms.txt
-
 CC := clang
 LD := ld.lld
 OBJDUMP := objdump
@@ -24,19 +23,18 @@ COMMON_CFLAGS := --target=x86_64-unknown-none-elf -std=c17 -ffreestanding \
 CFLAGS := $(COMMON_CFLAGS)
 PANIC_CFLAGS := $(COMMON_CFLAGS) -DMCSOS_M3_TRIGGER_PANIC=1
 LDFLAGS := -nostdlib -static -z max-page-size=0x1000 -T linker.ld
-
 SRC_C := $(shell find kernel -name '*.c' | LC_ALL=C sort)
 OBJ := $(patsubst %.c,$(BUILD_DIR)/normal/%.o,$(SRC_C))
 PANIC_OBJ := $(patsubst %.c,$(BUILD_DIR)/panic/%.o,$(SRC_C))
 
-.PHONY: all clean build inspect audit
+.PHONY: all clean build inspect audit clean distclean
 
-all: build inspect audit
+all: build inspect
 
-clean:
->rm -rf $(BUILD_DIR)
+build: $(KERNEL)
 
-build: $(KERNEL) $(PANIC_KERNEL)
+panic: $(PANIC_KERNEL)
+
 
 $(BUILD_DIR)/normal/%.o: %.c
 >mkdir -p $(dir $@)
@@ -59,13 +57,37 @@ inspect: $(KERNEL)
 >$(READELF) -l $(KERNEL) > $(BUILD_DIR)/kernel.readelf.programs.txt
 >$(NM) -n $(KERNEL) > $(SYMS)
 >$(OBJDUMP) -d -Mintel $(KERNEL) > $(DISASM)
-
-audit: inspect
 >grep -q 'ELF64' $(BUILD_DIR)/kernel.readelf.header.txt
 >grep -q 'Machine:[[:space:]]*Advanced Micro Devices X86-64' $(BUILD_DIR)/kernel.readelf.header.txt
 >grep -q 'kmain' $(SYMS)
 >grep -q 'kernel_panic_at' $(SYMS)
 >grep -q 'cpu_halt_forever' $(DISASM)
+
+audit : inspect panic
 >! $(NM) -u $(KERNEL) | grep .
 >! $(NM) -u $(PANIC_KERNEL) | grep .
->echo "PASS: Semua kriteria audit biner M3 terpenuhi!"
+>grep -q 'kernel_panic_at' $(BUILD_DIR)/kernel.disasm.txt
+>$(READELF) -S $(KERNEL) | grep -q '.text'
+>$(READELF) -S $(KERNEL) | grep -q '.rodata'
+
+clean:
+>rm -rf $(BUILD_DIR)
+
+distclean: clean
+>rm -rf iso_root limine
+
+# --- Target image menggunakan xorriso + OVMF (Tanpa git clone Limine) ---
+ISO_ROOT := iso_root
+ISO := $(BUILD_DIR)/mcsos.iso
+OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE.fd
+
+.PHONY: image
+image: $(KERNEL)
+>rm -rf $(ISO_ROOT)
+>mkdir -p $(ISO_ROOT)/EFI/BOOT
+>cp -v $(KERNEL) $(ISO_ROOT)/boot.elf
+>cp -v $(OVMF_CODE) $(ISO_ROOT)/EFI/BOOT/BOOTX64.EFI
+>printf "TIMEOUT=0\n\n:MCSOS\nPROTOCOL=multiboot1\nKERNEL_PATH=boot:///boot.elf\n" > $(ISO_ROOT)/boot/limine/limine.conf
+>mkdir -p $(ISO_ROOT)/boot/limine
+>printf "TIMEOUT=0\n\n:MCSOS\nPROTOCOL=multiboot1\nKERNEL_PATH=boot:///boot.elf\n" > $(ISO_ROOT)/boot/limine/limine.conf
+>xorriso -as mkisofs -efi-boot EFI/BOOT/BOOTX64.EFI -efi-boot-part --efi-boot-image --protective-msdos-label $(ISO_ROOT) -o $(ISO)

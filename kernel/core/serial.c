@@ -1,5 +1,6 @@
-#include <mcsos/arch/io.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <mcsos/arch/io.h>
 
 #define COM1_PORT 0x3F8u
 #define SERIAL_TIMEOUT_LIMIT 100000u
@@ -22,24 +23,23 @@ void serial_putc(char c) {
     uint32_t spin = 0u;
 
     if (c == '\n') {
-        serial_putc('\r');
+    	serial_putc('\r');
     }
 
-    /* PERBAIKAN: Perulangan ini sekarang berada di dalam fungsi serial_putc yang benar */
     while (!serial_transmit_empty()) {
-        if (++spin >= SERIAL_TIMEOUT_LIMIT) {
-            return;
-        }
-    }
+ 	if (++spin >= SERIAL_TIMEOUT_LIMIT) {
+	    return;
+    	}
 
+    }
     outb((uint16_t)COM1_PORT, (uint8_t)c);
 }
 
 void serial_write(const char *s) {
     if (s == (const char *)0) {
-        return;
+    	return;
     }
     while (*s != '\0') {
-        serial_putc(*s++);
+    	serial_putc(*s++);
     }
 }

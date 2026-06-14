@@ -20,7 +20,7 @@ static inline uint64_t cpu_read_rflags(void) {
     __asm__ volatile ("pushfq; popq %0" : "=r"(flags) : : "memory");
     return flags;
 }
-__attribute__((noreturn)) static inline void cpu_halt_forever(void) {
+__attribute__((noreturn,noinline)) void cpu_halt_forever(void) {
     cpu_cli();
     for (;;) {
         cpu_hlt();

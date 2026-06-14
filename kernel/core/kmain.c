@@ -1,17 +1,33 @@
 #include <stdint.h>
-
-/* Deklarasi fungsi eksternal agar compiler mengenalnya */
-void serial_init(void);
-void log_init(void);
-void kernel_panic_at(const char *file, int line, const char *reason, uint64_t code);
-
+#include <mcsos/arch/cpu.h>
+#include <mcsos/kernel/log.h>
+#include <mcsos/kernel/panic.h>
+#include <mcsos/kernel/version.h>
+extern char __kernel_start[];
+extern char __kernel_end[];
+static void m3_selftest(void) {
+KERNEL_ASSERT(__kernel_end > __kernel_start);
+KERNEL_ASSERT(sizeof(uintptr_t) == 8u);
+log_writeln("[M3] selftest: basic invariants passed");
+}
+#ifdef MCSOS_M3_TRIGGER_PANIC
+#else
+#endif
 void kmain(void) {
-    /* 1. Aktifkan port serial COM1 hardware */
-    serial_init();
-    
-    /* 2. Inisialisasi sistem pencatatan log */
-    log_init();
-    
-    /* 3. Picu Kernel Panic Milestone 3 dengan kode heksadesimal MCSOS03 (0x4d43534f533033) */
-    kernel_panic_at(__FILE__, __LINE__, "intentional M3 panic test", 0x4d43534f533033);
+log_init();
+log_write(MCSOS_NAME);
+log_write(" ");
+log_write(MCSOS_VERSION);
+log_write(" ");
+log_write(MCSOS_MILESTONE);
+log_writeln(" kernel entered");
+log_key_value_hex64("kernel_start", (uint64_t)
+(uintptr_t)__kernel_start);
+log_key_value_hex64("kernel_end", (uint64_t)(uintptr_t)__kernel_end);
+log_key_value_hex64("rflags", cpu_read_rflags());
+m3_selftest();
+KERNEL_PANIC("intentional M3 panic test", 0x4D43534F533033u);
+log_writeln("[M3] panic path installed; intentional panic disabled");
+log_writeln("[M3] ready for QEMU smoke test and GDB audit");
+cpu_halt_forever();
 }
